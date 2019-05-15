@@ -1,4 +1,4 @@
--------------------------------------------------------------
+--------------------------------------------------------------
 ---! @file
 ---! @brief tcp socket的客户连接
 --------------------------------------------------------------
@@ -23,16 +23,17 @@ local CMD = {}
 
 ---! @brief start service
 function CMD.start (info)
-    agentInfo = info
+    for k, v in pairs(info) do
+        agentInfo[k] = v
+    end
 
     skynet.error("CMD start called on fd ", agentInfo.client_fd)
-
     skynet.call(agentInfo.gate, "lua", "forward", agentInfo.client_fd)
 
     agentInfo.last_update = skynet.time()
     skynet.fork(function()
-        local heartbeat = 7   -- 7 seconds to send heart beat
-        local timeout   = 60  -- 60 seconds, 1 minutes
+        local heartbeat = 3   -- 3 seconds to send heart beat
+        local timeout   = 10  -- 10 seconds to break
         while true do
             local now = skynet.time()
             if now - agentInfo.last_update >= timeout then
@@ -48,6 +49,7 @@ function CMD.start (info)
     return 0
 end
 
+---! send protocal back to user socket
 function CMD.sendProtocolPacket (packet)
     if agentInfo.client_fd then
         local data = string.pack(">s2", packet)
@@ -57,12 +59,16 @@ end
 
 ---! @brief 通知agent主动结束
 function CMD.disconnect ()
-    agentUtil:reqQuit(agentInfo.client_fd)
+    agentUtil:hallReqQuit()
+
+    if agentInfo.client_fd then
+        socket.close(agentInfo.client_fd)
+    end
 
     skynet.exit()
 end
 
-
+---! handle socket data
 skynet.register_protocol {
 	name = "client",
 	id = skynet.PTYPE_CLIENT,

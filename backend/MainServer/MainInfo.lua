@@ -152,6 +152,7 @@ function CMD.askAll ()
     end
 end
 
+---! get agent list
 function CMD.getAgentList ()
     local ret = {}
     ret.agents = {}
@@ -166,6 +167,52 @@ function CMD.getAgentList ()
     end
 
     return ret
+end
+
+---! get hall list
+function CMD.getHallList (uid, args)
+    local prevServer = CMD.getAppGameUser(uid, args.gameId)
+
+    args.gameId     = args.gameId or 0
+    args.gameMode   = args.gameMode or nil
+    args.gameVersion = args.gameVersion or 0
+
+    local arr = {}
+    local list = servers[args.gameId]
+    if not list then
+        skynet.error("HallServer empty")
+        return arr
+    end
+
+    for _, info in pairs(list) do
+        local thumb = {}
+        thumb.app   = info.clusterName
+        thumb.pri   = info.numPlayers
+
+        if info.numPlayers > info.highPlayers then
+            info.busy = true
+        elseif info.numPlayers < info.lowPlayers then
+            info.busy = nil
+        end
+
+        if info.busy then
+            thumb.pri = thumb.pri - 1200
+        end
+
+        local versionOK = (args.gameVersion <= info.gameVersion and args.gameVersion >= info.lowVersion)
+        if args.gameMode ~= nil and (args.gameMode ~= gameMode or not versionOK) then
+            thumb.pri = thumb.pri - 1200
+        end
+
+        if info.clusterName == prevServer then
+            thumb.pri = thumb.pri + 8000
+        end
+
+        table.insert(arr, thumb)
+    end
+
+    table.sort(arr, function(a, b) return a.pri > b.pri end)
+    return arr
 end
 
 ---! node info to register
@@ -229,7 +276,7 @@ local function get_path_hall_user (uid, gameId)
 end
 
 ---! 记录游戏玩家
-function CMD.keepAppGameUser (uid, gameId, appName)
+function CMD.addAppGameUser (uid, gameId, appName)
     local path = get_path_hall_user(uid, gameId)
     local redis = skynet.call(nodeInfo, "lua", "getConfig", clsHelper.kRedisService)
     skynet.call(redis, "lua", "runCmd", "SET", path, appName)
@@ -237,7 +284,7 @@ function CMD.keepAppGameUser (uid, gameId, appName)
 end
 
 ---! 清除游戏玩家
-function CMD.freeAppGameUser (uid, gameId)
+function CMD.delAppGameUser (uid, gameId)
     local path = get_path_hall_user(uid, gameId)
     local redis = skynet.call(nodeInfo, "lua", "getConfig", clsHelper.kRedisService)
     return skynet.call(redis, "lua", "runCmd", "DEL", path)
@@ -256,7 +303,7 @@ function CMD.getStat ()
 
     local str = nil
     local arr = {}
-    table.insert(arr, os.date() .. "\n")
+    table.insert(arr, "\n" .. os.date() .. "\n")
     table.insert(arr, "[Agent List]\n")
 
     local agentCount = 0
@@ -284,7 +331,7 @@ function CMD.getStat ()
     end
 
     str = string.format("\n大厅服务器数目:%d \t客户服务器数目:%d \t登陆人数:%d \t游戏人数:%d\n",
-                            hallNum, agentNum, hallCount, agentCount)
+                            hallNum, agentNum, agentCount, hallCount)
     table.insert(arr, str)
 
     return strHelper.join(arr, "")

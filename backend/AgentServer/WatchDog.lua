@@ -14,10 +14,13 @@ local sockethelper = require "http.sockethelper"
 local clsHelper = require "ClusterHelper"
 local NumSet    = require "NumSet"
 
+local myInfo = nil
 ---! NodeInfo's address
 local nodeInfo = nil
 ---! gateserver's gate service
 local gate  = nil
+local web_sock_id = nil
+
 ---! all agents
 local tcpAgents = NumSet.create()
 local webAgents = NumSet.create()
@@ -29,6 +32,7 @@ local function close_agent(fd)
         webAgents:removeObject(fd)
         ---! close web socket, kick web agent
         pcall(skynet.send, info.agent, "lua", "disconnect")
+        return
     end
 
     info = tcpAgents:getObject(fd)
@@ -36,10 +40,6 @@ local function close_agent(fd)
         tcpAgents:removeObject(fd)
 
         ---! close tcp socket, kick tcp agent
-        local helper = require "TaskHelper"
-        helper.closeGateAgent(info.gate, fd);
-
-        ---! disconnect never return
         pcall(skynet.send, info.agent, "lua", "disconnect")
     else
         skynet.error("unable to close agent, fd = ", fd)
@@ -66,6 +66,7 @@ function SOCKET.open(fd, addr)
     info.client_fd  = fd
     info.address    = string.gsub(addr, ":%d+", "")
     info.agent      = agent
+    info.appName    = myInfo.appName
 
     tcpAgents:addObject(info, fd)
 
@@ -116,8 +117,15 @@ function CMD.closeAgent(fd)
 end
 
 ---! @brief place holder, we may use it later
-function CMD.noticeAllAgents(msg)
-    skynet.error("watchdog get notice", msg)
+function CMD.noticeAll (msg)
+    webAgents:forEach(function (info)
+        pcall(skynet.send, info.agent, "lua", "sendProtocolPacket", msg)
+    end)
+
+    tcpAgents:forEach(function (info)
+        pcall(skynet.send, info.agent, "lua", "sendProtocolPacket", msg)
+    end)
+
     return 0
 end
 
@@ -127,6 +135,25 @@ function CMD.getStat ()
     stat.tcp = tcpAgents:getCount()
     stat.sum = stat.web + stat.tcp
     return stat
+end
+
+function CMD.gateOff ()
+    if gate then
+        xpcall(function ()
+            skynet.call(gate, "lua", "close")
+        end,
+        function (err)
+            print("gateOff -> close gate: error is ", err)
+        end)
+    end
+    if web_sock_id then
+        xpcall(function ()
+            socket.close(web_sock_id)
+        end,
+        function (err)
+            print("gateOff -> close web: error is ", err)
+        end)
+    end
 end
 
 ---! 注册LoginWatchDog的处理函数，一种是skynet服务，一种是socket
@@ -158,27 +185,25 @@ end
 local function handle_web(id, addr)
     -- limit request body size to 8192 (you can pass nil to unlimit)
     local code, url, method, header, body = httpd.read_request(sockethelper.readfunc(id), 8192)
-    if code then
-        if url == "/tun" then
-            local info = webAgents:getObject(id)
-            if info then
-                close_agent(id)
-            end
-
-            skynet.error("watchdog web agent start", id, addr)
-            local agent = skynet.newservice("WebAgent")
-
-            local info = {}
-            info.watchdog   = skynet.self()
-            info.gate       = nil
-            info.client_fd  = id
-            info.address    = string.gsub(addr, ":%d+", "")
-            info.agent      = agent
-
-            webAgents:addObject(info, id)
-
-            skynet.call(agent, "lua", "start", info, header)
+    if code and url == "/tun" then
+        local info = webAgents:getObject(id)
+        if info then
+            close_agent(id)
         end
+
+        skynet.error("watchdog web agent start", id, addr)
+        local agent = skynet.newservice("WebAgent")
+
+        local info = {}
+        info.watchdog   = skynet.self()
+        info.gate       = nil
+        info.client_fd  = id
+        info.address    = string.gsub(addr, ":%d+", "")
+        info.agent      = agent
+        info.appName    = myInfo.appName
+
+        webAgents:addObject(info, id)
+        skynet.call(agent, "lua", "start", info, header)
     end
 end
 
@@ -188,7 +213,7 @@ local function startWatch ()
     nodeInfo = skynet.uniqueservice(clsHelper.kNodeInfo)
     skynet.call(nodeInfo, "lua", "updateConfig", skynet.self(), clsHelper.kWatchDog)
 
-    local myInfo = skynet.call(nodeInfo, "lua", "getConfig", "nodeInfo")
+    myInfo = skynet.call(nodeInfo, "lua", "getConfig", "nodeInfo")
 
     ---! 启动gate
     local publicAddr = "0.0.0.0"
@@ -203,6 +228,7 @@ local function startWatch ()
     -- web tunnel, 监听 8300 + serverIndex
     local address = string.format("%s:%d", publicAddr, myInfo.webPort)
     local id = assert(socket.listen(address))
+    web_sock_id = id
     socket.start(id , function(id, addr)
         socket.start(id)
         xpcall(function ()

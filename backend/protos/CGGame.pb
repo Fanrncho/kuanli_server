@@ -1,5 +1,5 @@
 
-Ã
+ò
 CGGame.protoCGGame"?
 	ProtoInfo
 mainType (
@@ -11,10 +11,11 @@
 msgBody ("*
 AclInfo
 aclType (
-aclMsg ("0
+aclMsg ("E
 	HeartBeat
 fromType (
-	timestamp ("Å
+	timestamp (
+networkType ("Å
 	AgentList*
 agents (2.CGGame.AgentList.OneAgentH
 OneAgent
@@ -30,11 +31,97 @@ noticeType (
 
 noticeText ("ò
 AuthInfo
-username (
+playerId (
 password (
 	challenge (
 	clientkey (
 	serverkey (
 hmac (
 etoken (
-	authIndex (
+	authIndex ("°
+HallInfo
+gameId (
+gameVersion (
+
+lowVersion (
+gameMode (
+
+numPlayers (
+
+maxPlayers (
+	FUserCode
+ (
+appName ("æ
+UserInfo
+
+fieldNames (
+	FUserCode (
+	FUniqueID (
+	FPassword (
+	FNickName (
+FOSType (
+	FPlatform (
+	FUserName (
+FMobile
+ (
+FIDCard (
+FEmail (
+FRegTime (
+FLastIP (
+FLastLoginTime (
+
+FTotalTime (
+	FAvatarID (
+
+FAvatarUrl (
+FAvatarData (
+	FLocation (
+
+FLongitude (
+	FLatitude (
+	FAltitude (
+	FNetSpeed ("<
+SeatInfo
+roomId (
+seatId (
+userCode ("F
+WaitUserInfo
+tableStatus (
+timeout (
+waitMask ("|
+ChatInfo
+gameId (
+chatType (
+
+listenerId (
+speekerCode (
+speakerNick (
+chatText ("é
+RoomInfo
+roomId (
+
+expireTime (
+openTime (
+	gameCount (
+	ownerCode (
+	ownerName (
+roomDetails ("\
+ExitInfo
+roomId (
+timeout (
+mask (
+seatId (
+	ownerCode ("?
+TableMapInfo
+field (
+userCode (
+seatId ("T
+GiftInfo
+giftName (
+coinCost (
+	srcSeatId (
+	dstSeatId ("F
+ShareBonusInfo
+maxCount (
+curCount (
+bonusNum (
